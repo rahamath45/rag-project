@@ -24,7 +24,7 @@ function App() {
     setLoading(true);
 
     const res = await fetch(
-      `http://backend:8002/ask?question=${question}&class_name=${className}`
+      `http://localhost:8002/ask?question=${question}&class_name=${className}`
     );
 
     const data = await res.json();

@@ -10,7 +10,7 @@ questions, answers, contexts, ground_truths = [], [], [], []
 for item in dataset:
     q = item["question"]
     res = requests.get(
-        "http://127.0.0.1:8001/ask",
+        "http://127.0.0.1:8002/ask",
         params={"question": q}
     ).json()
 

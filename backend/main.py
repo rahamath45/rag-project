@@ -26,12 +26,12 @@ langfuse = Langfuse(
 )
 
 # connect qdrant
-client = QdrantClient(host="qdrant", port=6333)
+client = QdrantClient(host="localhost", port=6333)
 
 
 def get_embedding(text):
     response = requests.post(
-        "http://host.docker.internal:11434/api/embeddings",
+        "http://localhost:11434/api/embeddings",
         json={
             "model": "nomic-embed-text",
             "prompt": text
@@ -117,7 +117,7 @@ Question:
 """
 
             response = requests.post(
-                "http://host.docker.internal:11434/api/generate",
+                "http://localhost:11434/api/generate",
                 json={
                     "model": "llama3",
                     "prompt": prompt,
