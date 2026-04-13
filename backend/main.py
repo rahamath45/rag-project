@@ -109,10 +109,9 @@ def ask(question: str, class_name:str = None):
 
             context = " ".join(top_chunks)
 
-        system_prompt = load_prompt()
+            system_prompt = load_prompt()
 
-        prompt = f"""
-{system_prompt}
+            prompt = f"""{system_prompt}
 
 Context:
 {context}
@@ -120,29 +119,28 @@ Context:
 Question:
 {question}
 
-Answer:
-"""
+Answer:"""
 
-        response = requests.post(
-            "http://localhost:11434/api/generate",
-            json={
-                "model": "llama3",
-                "prompt": prompt,
-                "stream": False
+            response = requests.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": "llama3",
+                    "prompt": prompt,
+                    "stream": False
+                }
+            )
+
+            answer = response.json().get("response", "No response")
+
+            trace.update(
+                output={"answer": answer}
+            )
+
+            return {
+                "question": question,
+                "answer": answer,
+                "class": class_name
             }
-        )
-
-        answer = response.json().get("response", "No response")
-
-        trace.update(
-            output={"answer": answer}
-        )
-
-        return {
-            "question": question,
-            "answer": answer,
-            "class": class_name
-        }
 
     except Exception as e:
         return {"error": str(e)}
