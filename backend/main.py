@@ -28,6 +28,9 @@ langfuse = Langfuse(
 # connect qdrant
 client = QdrantClient(host="localhost", port=6333)
 
+def load_prompt():
+    with open("prompts/system_prompt.txt", "r") as f:
+        return f.read()
 
 def get_embedding(text):
     response = requests.post(
@@ -106,30 +109,34 @@ def ask(question: str, class_name:str = None):
 
             context = " ".join(top_chunks)
 
-            prompt = f"""
-Answer the question based on context.
+        system_prompt = load_prompt()
+
+        prompt = f"""
+{system_prompt}
 
 Context:
 {context}
 
 Question:
 {question}
+
+Answer:
 """
 
-            response = requests.post(
-                "http://localhost:11434/api/generate",
-                json={
-                    "model": "llama3",
-                    "prompt": prompt,
-                    "stream": False
-                }
-            )
+        response = requests.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": "llama3",
+                "prompt": prompt,
+                "stream": False
+            }
+        )
 
-            answer = response.json().get("response", "No response")
+        answer = response.json().get("response", "No response")
 
-            trace.update(
-                output={"answer": answer}
-            )
+        trace.update(
+            output={"answer": answer}
+        )
 
         return {
             "question": question,
