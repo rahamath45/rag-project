@@ -31,7 +31,7 @@ function App() {
 
     const botMessage: Message = {
       role: "assistant",
-      content: data.answer,
+      content: data.answer?.content || data.answer || "No answer received",
     };
 
     setMessages((prev) => [...prev, botMessage]);

@@ -1,9 +1,14 @@
 from fastapi import FastAPI
-from qdrant_client import QdrantClient
-import requests
 import os
 from langfuse import Langfuse, observe
 from fastapi.middleware.cors import CORSMiddleware
+from agno.agent import Agent
+from agno.models.ollama import Ollama
+from agno.knowledge import Knowledge
+from agno.knowledge.embedder.ollama import OllamaEmbedder
+from agno.knowledge.document import Document
+from agno.vectordb.qdrant import Qdrant
+from agno.vectordb.search import SearchType
 
 from dotenv import load_dotenv
 
@@ -25,120 +30,55 @@ langfuse = Langfuse(
     host=os.getenv("LANGFUSE_HOST")
 )
 
-# connect qdrant
-client = QdrantClient(host="localhost", port=6333)
-
+# Load system prompt
 def load_prompt():
     with open("prompts/system_prompt.txt", "r") as f:
         return f.read()
 
-def get_embedding(text):
-    response = requests.post(
-        "http://localhost:11434/api/embeddings",
-        json={
-            "model": "nomic-embed-text",
-            "prompt": text
-        }
-    )
+# Setup Agno-native vector DB with Ollama embedder
+vector_db = Qdrant(
+    collection="ncert",
+    embedder=OllamaEmbedder(id="nomic-embed-text", dimensions=768),
+    url="http://localhost:6333",
+    search_type=SearchType.vector,
+    distance="cosine",
+)
 
-    if response.status_code != 200:
-        return {"error": response.text}
+# Setup Agno-native Knowledge base
+knowledge = Knowledge(
+    name="ncert_knowledge",
+    vector_db=vector_db,
+)
 
-    data = response.json()
-
-    if "embedding" not in data:
-        return {"error": data}
-
-    return data["embedding"]
-
-
-@observe()
-def hybrid_search(question, class_name=None):
-    query_vector = get_embedding(question)
-
-    filter_query = None
-
-    if class_name:
-        filter_query = {
-            "must": [
-                {
-                    "key": "class",
-                    "match": {"value": class_name}
-                }
-            ]
-        }
-
-    results = client.query_points(
-        collection_name="ncert",
-        query=query_vector,
-        query_filter=filter_query,
-        limit=5
-    )
-
-    return results.points
-
-# ✅ Reranking
-@observe()
-def rerank(question, results):
-    scored = []
-
-    for r in results:
-        text = r.payload.get("text", "")
-        score = len(set(question.lower().split()) & set(text.lower().split()))
-        scored.append((score, text))
-
-    scored.sort(reverse=True)
-
-    return [text for _, text in scored[:3]]
+# Create Agent with native RAG
+rag_agent = Agent(
+    name="NCERT RAG",
+    model=Ollama(id="llama3:latest"),
+    knowledge=knowledge,
+    search_knowledge=False,
+    add_knowledge_to_context=True,
+    instructions=load_prompt(),
+    markdown=True,
+)
 
 @app.get("/ask")
-def ask(question: str, class_name:str = None):
+def ask(question: str, class_name: str = None):
     try:
         with langfuse.start_as_current_observation(
             name="rag-query",
             input={"question": question}
         ) as trace:
-            # hybrid search
-            results = hybrid_search(question)
+            # Set knowledge filter if class_name provided
+            if class_name:
+                rag_agent.knowledge_filters = {"class": class_name}
 
-            if not results:
-                return {"error": "No data found in Qdrant"}
+            response = rag_agent.run(question)
 
-            # rerank
-            top_chunks = rerank(question, results)
-
-            context = " ".join(top_chunks)
-
-            system_prompt = load_prompt()
-
-            prompt = f"""{system_prompt}
-
-Context:
-{context}
-
-Question:
-{question}
-
-Answer:"""
-
-            response = requests.post(
-                "http://localhost:11434/api/generate",
-                json={
-                    "model": "llama3",
-                    "prompt": prompt,
-                    "stream": False
-                }
-            )
-
-            answer = response.json().get("response", "No response")
-
-            trace.update(
-                output={"answer": answer}
-            )
+            trace.update(output={"answer": response.content})
 
             return {
                 "question": question,
-                "answer": answer,
+                "answer": response.content,
                 "class": class_name
             }
 
