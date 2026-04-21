@@ -59,6 +59,7 @@ rag_agent = Agent(
     add_knowledge_to_context=True,
     instructions=load_prompt(),
     markdown=True,
+     structured_outputs=True
 )
 
 @app.get("/ask")

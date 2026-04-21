@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 type Message = {
   role: "user" | "assistant";
@@ -79,7 +80,10 @@ function App() {
               {msg.role === "user" ? "👤" : "🤖"}
             </div>
             <div className="message-content">
-              <p>{msg.content}</p>
+             
+<ReactMarkdown>
+  {msg.content}
+</ReactMarkdown>
             </div>
           </div>
         ))}
